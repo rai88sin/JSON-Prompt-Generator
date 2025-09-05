@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .input-group label {
+            font-weight: 600;
+        }
+        .input-group input, .input-group select, .input-group textarea {
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            padding: 0.75rem;
+            transition: all 0.2s ease-in-out;
+            width: 100%;
+        }
+        .input-group input:focus, .input-group select:focus, .input-group textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.5);
+        }
+        #generateBtn, #copyBtn {
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        #generateBtn {
+            background-color: #6366f1;
+            color: white;
+        }
+        #generateBtn:hover {
+            background-color: #4f46e5;
+        }
+        #copyBtn {
+            background-color: #e5e7eb;
+            color: #4b5563;
+        }
+        #copyBtn:hover {
+            background-color: #d1d5db;
+        }
+        .json-output {
+            background-color: #1f2937;
+            color: #f9fafb;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            min-height: 200px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #6366f1;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main Container -->
+    <div class="container bg-white shadow-xl rounded-2xl p-6 md:p-10 space-y-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800">JSON Generator</h1>
+        <p class="text-center text-gray-500">
+            Generate structured JSON for AI prompts by filling out the fields below.
+        </p>
+
+        <!-- Input Fields -->
+        <div class="space-y-6">
+            <div class="input-group">
+                <label for="mainSubject" class="block text-gray-700">Main Subject</label>
+                <input type="text" id="mainSubject" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300" placeholder="e.g., A fluffy dog">
+            </div>
+            <div class="input-group">
+                <label for="action" class="block text-gray-700">Action</label>
+                <input type="text" id="action" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300" placeholder="e.g., chasing a frisbee">
+            </div>
+            <div class="input-group">
+                <label for="setting" class="block text-gray-700">Setting / Environment</label>
+                <input type="text" id="setting" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300" placeholder="e.g., in a park on a sunny day">
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="input-group">
+                    <label for="visualStyle" class="block text-gray-700">Visual Style</label>
+                    <select id="visualStyle" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300">
+                        <option value="photorealistic">Photorealistic</option>
+                        <option value="cinematic">Cinematic</option>
+                        <option value="anime">Anime</option>
+                        <option value="watercolor">Watercolor</option>
+                        <option value="cyberpunk">Cyberpunk</option>
+                        <option value="impressionist">Impressionist</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="cameraShot" class="block text-gray-700">Camera Shot</label>
+                    <select id="cameraShot" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300">
+                        <option value="wide-shot">Wide Shot</option>
+                        <option value="close-up">Close-up</option>
+                        <option value="drone-shot">Drone Shot</option>
+                        <option value="macro">Macro</option>
+                        <option value="tilt-shift">Tilt-shift</option>
+                        <option value="first-person">First-person</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="lighting" class="block text-gray-700">Lighting</label>
+                    <select id="lighting" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300">
+                        <option value="daylight">Daylight</option>
+                        <option value="golden-hour">Golden Hour</option>
+                        <option value="night-with-neons">Night with Neons</option>
+                        <option value="soft-studio-light">Soft Studio Light</option>
+                        <option value="dramatic-shadows">Dramatic Shadows</option>
+                    </select>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="additionalDetails" class="block text-gray-700">Additional Details</label>
+                <textarea id="additionalDetails" rows="4" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300" placeholder="e.g., hyper-realistic, detailed texture, motion blur"></textarea>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-center">
+            <button id="generateBtn" class="px-6 py-3 rounded-full text-white shadow-lg flex items-center justify-center space-x-2">
+                <span id="buttonText">Generate JSON</span>
+                <div id="loader" class="loader hidden"></div>
+            </button>
+        </div>
+
+        <!-- Output Section -->
+        <div id="outputSection" class="relative hidden mt-8">
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">Generated JSON Prompt</h2>
+            <pre id="jsonOutput" class="json-output"></pre>
+            <button id="copyBtn" class="absolute top-0 right-0 m-4 px-4 py-2 rounded-full text-sm font-medium shadow-md">
+                Copy
+            </button>
+        </div>
+        
+        <!-- Custom Alert Modal -->
+        <div id="alertModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3 text-center">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="alertTitle"></h3>
+                    <div class="mt-2 px-7 py-3">
+                        <p class="text-sm text-gray-500" id="alertMessage"></p>
+                    </div>
+                    <div class="items-center px-4 py-3">
+                        <button id="alertOk" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_KEY = ""; // Keep this as an empty string
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=" + API_KEY;
+
+        const mainSubjectEl = document.getElementById('mainSubject');
+        const actionEl = document.getElementById('action');
+        const settingEl = document.getElementById('setting');
+        const visualStyleEl = document.getElementById('visualStyle');
+        const cameraShotEl = document.getElementById('cameraShot');
+        const lightingEl = document.getElementById('lighting');
+        const additionalDetailsEl = document.getElementById('additionalDetails');
+        
+        const generateBtn = document.getElementById('generateBtn');
+        const buttonText = document.getElementById('buttonText');
+        const loader = document.getElementById('loader');
+        
+        const outputSection = document.getElementById('outputSection');
+        const jsonOutputEl = document.getElementById('jsonOutput');
+        const copyBtn = document.getElementById('copyBtn');
+        
+        const alertModal = document.getElementById('alertModal');
+        const alertTitle = document.getElementById('alertTitle');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertOk = document.getElementById('alertOk');
+
+        function showAlert(title, message) {
+            alertTitle.textContent = title;
+            alertMessage.textContent = message;
+            alertModal.classList.remove('hidden');
+        }
+
+        alertOk.onclick = () => {
+            alertModal.classList.add('hidden');
+        };
+
+        generateBtn.addEventListener('click', async () => {
+            const mainSubject = mainSubjectEl.value.trim();
+            const action = actionEl.value.trim();
+            const setting = settingEl.value.trim();
+            const visualStyle = visualStyleEl.value;
+            const cameraShot = cameraShotEl.value;
+            const lighting = lightingEl.value;
+            const additionalDetails = additionalDetailsEl.value.trim();
+
+            if (!mainSubject || !action || !setting) {
+                showAlert('Input Required', 'Please fill out the Main Subject, Action, and Setting fields.');
+                return;
+            }
+
+            buttonText.textContent = '';
+            loader.classList.remove('hidden');
+            generateBtn.disabled = true;
+
+            const userPrompt = `Generate a JSON object for an AI video prompt. The video should contain the following elements:
+            - A main subject: ${mainSubject}
+            - The action the subject is performing: ${action}
+            - The setting or environment: ${setting}
+            - The visual style: ${visualStyle}
+            - The camera shot: ${cameraShot}
+            - The lighting and time of day: ${lighting}
+            - Additional details: ${additionalDetails}
+            The JSON object should have keys "subject", "action", "setting", "visual_style", "camera_shot", "lighting", and "additional_details". Ensure the output is a valid JSON object.`;
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: userPrompt
+                    }]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "subject": { "type": "STRING" },
+                            "action": { "type": "STRING" },
+                            "setting": { "type": "STRING" },
+                            "visual_style": { "type": "STRING" },
+                            "camera_shot": { "type": "STRING" },
+                            "lighting": { "type": "STRING" },
+                            "additional_details": { "type": "STRING" }
+                        }
+                    }
+                }
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    const formattedJson = JSON.stringify(JSON.parse(jsonText), null, 2);
+                    jsonOutputEl.textContent = formattedJson;
+                    outputSection.classList.remove('hidden');
+                } else {
+                    throw new Error('No content received from the API.');
+                }
+
+            } catch (error) {
+                console.error('Error generating JSON:', error);
+                showAlert('Generation Failed', 'An error occurred while generating the JSON. Please try again.');
+            } finally {
+                buttonText.textContent = 'Generate JSON';
+                loader.classList.add('hidden');
+                generateBtn.disabled = false;
+            }
+        });
+
+        copyBtn.addEventListener('click', () => {
+            if (jsonOutputEl.textContent) {
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = jsonOutputEl.textContent;
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                try {
+                    document.execCommand('copy');
+                    showAlert('Success', 'JSON copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy text:', err);
+                    showAlert('Error', 'Failed to copy JSON. Please try again.');
+                }
+                document.body.removeChild(tempTextarea);
+            }
+        });
+
+    </script>
+</body>
+</html>
