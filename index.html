@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JSON Generator</title>
+    <title>JSON Generator with History</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -71,16 +71,137 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('Debug');
+
+            // Authenticate and set up listeners
+            onAuthStateChanged(auth, async (user) => {
+                let userId;
+                if (user) {
+                    userId = user.uid;
+                } else {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        userId = auth.currentUser.uid;
+                    } else {
+                        await signInAnonymously(auth);
+                        userId = auth.currentUser.uid;
+                    }
+                }
+                
+                window.db = db;
+                window.auth = auth;
+                window.userId = userId;
+                window.appId = appId;
+                
+                // Load the last generated entry on page load
+                loadLastEntry();
+                // Set up the real-time history listener
+                setupHistoryListener();
+            });
+        }
+
+        // Function to load the last entry from Firestore
+        async function loadLastEntry() {
+            if (!window.userId || !window.db) return;
+            const collectionPath = `/artifacts/${window.appId}/users/${window.userId}/json_history`;
+            const q = query(collection(window.db, collectionPath), orderBy("timestamp", "desc"), limit(1));
+            
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const lastDoc = querySnapshot.docs[0].data();
+                populateForm(lastDoc.inputs, lastDoc.output);
+            }
+        }
+        
+        // Function to set up the real-time history listener
+        function setupHistoryListener() {
+            if (!window.userId || !window.db) return;
+            const collectionPath = `/artifacts/${window.appId}/users/${window.userId}/json_history`;
+            const q = query(collection(window.db, collectionPath), orderBy("timestamp", "desc"));
+
+            onSnapshot(q, (snapshot) => {
+                const historyListEl = document.getElementById('historyList');
+                historyListEl.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const item = document.createElement('div');
+                    item.className = 'p-4 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors duration-200';
+                    item.innerHTML = `<p class="font-bold text-gray-800">${data.inputs.mainSubject}</p><p class="text-sm text-gray-500">${new Date(data.timestamp.seconds * 1000).toLocaleString()}</p>`;
+                    item.onclick = () => {
+                        populateForm(data.inputs, data.output);
+                        document.getElementById('historyModal').classList.add('hidden');
+                    };
+                    historyListEl.appendChild(item);
+                });
+            });
+        }
+
+        // Function to populate the form from a history entry
+        function populateForm(inputs, output) {
+            document.getElementById('mainSubject').value = inputs.mainSubject || '';
+            document.getElementById('action').value = inputs.action || '';
+            document.getElementById('setting').value = inputs.setting || '';
+            document.getElementById('visualStyle').value = inputs.visualStyle || 'photorealistic';
+            document.getElementById('cameraShot').value = inputs.cameraShot || 'wide-shot';
+            document.getElementById('lighting').value = inputs.lighting || 'daylight';
+            document.getElementById('additionalDetails').value = inputs.additionalDetails || '';
+            document.getElementById('jsonOutput').textContent = output || '';
+            if (output) {
+                document.getElementById('outputSection').classList.remove('hidden');
+            } else {
+                document.getElementById('outputSection').classList.add('hidden');
+            }
+        }
+        
+        // Expose function for button click handler
+        window.populateForm = populateForm;
+    </script>
+
     <!-- Main Container -->
     <div class="container bg-white shadow-xl rounded-2xl p-6 md:p-10 space-y-8">
-        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800">JSON Generator</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">JSON Generator</h1>
+            <button id="historyBtn" class="p-3 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors duration-200" title="View History">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="currentColor" class="text-gray-600">
+                    <path d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24Zm0 192a88 88 0 1 1 88-88A88.1 88.1 0 0 1 128 216Z"/>
+                    <path d="M136 76v56a8 8 0 0 1-8 8h-40a8 8 0 0 1 0-16h32V76a8 8 0 0 1 16 0Z"/>
+                </svg>
+            </button>
+        </div>
         <p class="text-center text-gray-500">
             Generate structured JSON for AI prompts by filling out the fields below.
         </p>
+
+        <!-- API Key Input -->
+        <div class="input-group">
+            <label for="apiKey" class="block text-gray-700">Gemini API Key</label>
+            <input type="password" id="apiKey" class="mt-1 block w-full px-4 py-3 text-gray-700 rounded-lg focus:ring focus:ring-indigo-300" placeholder="Paste your API key here">
+        </div>
 
         <!-- Input Fields -->
         <div class="space-y-6">
@@ -171,143 +292,189 @@
             </div>
         </div>
 
+        <!-- History Modal -->
+        <div id="historyModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+            <div class="relative top-20 mx-auto p-6 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-medium text-gray-900">Your Generation History</h3>
+                    <button id="closeHistoryModal" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">&times;</button>
+                </div>
+                <div id="historyList" class="space-y-4 max-h-96 overflow-y-auto">
+                    <!-- History items will be dynamically added here -->
+                    <p class="text-center text-gray-500">Loading history...</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        const API_KEY = ""; // Keep this as an empty string
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=" + API_KEY;
+        document.addEventListener('DOMContentLoaded', () => {
+            const mainSubjectEl = document.getElementById('mainSubject');
+            const actionEl = document.getElementById('action');
+            const settingEl = document.getElementById('setting');
+            const visualStyleEl = document.getElementById('visualStyle');
+            const cameraShotEl = document.getElementById('cameraShot');
+            const lightingEl = document.getElementById('lighting');
+            const additionalDetailsEl = document.getElementById('additionalDetails');
+            
+            const generateBtn = document.getElementById('generateBtn');
+            const historyBtn = document.getElementById('historyBtn');
+            const buttonText = document.getElementById('buttonText');
+            const loader = document.getElementById('loader');
+            const apiKeyEl = document.getElementById('apiKey');
 
-        const mainSubjectEl = document.getElementById('mainSubject');
-        const actionEl = document.getElementById('action');
-        const settingEl = document.getElementById('setting');
-        const visualStyleEl = document.getElementById('visualStyle');
-        const cameraShotEl = document.getElementById('cameraShot');
-        const lightingEl = document.getElementById('lighting');
-        const additionalDetailsEl = document.getElementById('additionalDetails');
-        
-        const generateBtn = document.getElementById('generateBtn');
-        const buttonText = document.getElementById('buttonText');
-        const loader = document.getElementById('loader');
-        
-        const outputSection = document.getElementById('outputSection');
-        const jsonOutputEl = document.getElementById('jsonOutput');
-        const copyBtn = document.getElementById('copyBtn');
-        
-        const alertModal = document.getElementById('alertModal');
-        const alertTitle = document.getElementById('alertTitle');
-        const alertMessage = document.getElementById('alertMessage');
-        const alertOk = document.getElementById('alertOk');
+            const outputSection = document.getElementById('outputSection');
+            const jsonOutputEl = document.getElementById('jsonOutput');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            const alertModal = document.getElementById('alertModal');
+            const alertTitle = document.getElementById('alertTitle');
+            const alertMessage = document.getElementById('alertMessage');
+            const alertOk = document.getElementById('alertOk');
 
-        function showAlert(title, message) {
-            alertTitle.textContent = title;
-            alertMessage.textContent = message;
-            alertModal.classList.remove('hidden');
-        }
+            const historyModal = document.getElementById('historyModal');
+            const closeHistoryModalBtn = document.getElementById('closeHistoryModal');
 
-        alertOk.onclick = () => {
-            alertModal.classList.add('hidden');
-        };
-
-        generateBtn.addEventListener('click', async () => {
-            const mainSubject = mainSubjectEl.value.trim();
-            const action = actionEl.value.trim();
-            const setting = settingEl.value.trim();
-            const visualStyle = visualStyleEl.value;
-            const cameraShot = cameraShotEl.value;
-            const lighting = lightingEl.value;
-            const additionalDetails = additionalDetailsEl.value.trim();
-
-            if (!mainSubject || !action || !setting) {
-                showAlert('Input Required', 'Please fill out the Main Subject, Action, and Setting fields.');
-                return;
+            function showAlert(title, message) {
+                alertTitle.textContent = title;
+                alertMessage.textContent = message;
+                alertModal.classList.remove('hidden');
             }
 
-            buttonText.textContent = '';
-            loader.classList.remove('hidden');
-            generateBtn.disabled = true;
-
-            const userPrompt = `Generate a JSON object for an AI video prompt. The video should contain the following elements:
-            - A main subject: ${mainSubject}
-            - The action the subject is performing: ${action}
-            - The setting or environment: ${setting}
-            - The visual style: ${visualStyle}
-            - The camera shot: ${cameraShot}
-            - The lighting and time of day: ${lighting}
-            - Additional details: ${additionalDetails}
-            The JSON object should have keys "subject", "action", "setting", "visual_style", "camera_shot", "lighting", and "additional_details". Ensure the output is a valid JSON object.`;
-
-            const payload = {
-                contents: [{
-                    parts: [{
-                        text: userPrompt
-                    }]
-                }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            "subject": { "type": "STRING" },
-                            "action": { "type": "STRING" },
-                            "setting": { "type": "STRING" },
-                            "visual_style": { "type": "STRING" },
-                            "camera_shot": { "type": "STRING" },
-                            "lighting": { "type": "STRING" },
-                            "additional_details": { "type": "STRING" }
-                        }
-                    }
-                }
+            alertOk.onclick = () => {
+                alertModal.classList.add('hidden');
             };
 
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            historyBtn.onclick = () => {
+                historyModal.classList.remove('hidden');
+            };
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+            closeHistoryModalBtn.onclick = () => {
+                historyModal.classList.add('hidden');
+            };
+
+            generateBtn.addEventListener('click', async () => {
+                const apiKey = apiKeyEl.value.trim();
+                if (!apiKey) {
+                    showAlert('API Key Required', 'Please enter your Gemini API key to generate the JSON.');
+                    return;
                 }
-                
-                const result = await response.json();
-                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-                
-                if (jsonText) {
-                    const formattedJson = JSON.stringify(JSON.parse(jsonText), null, 2);
-                    jsonOutputEl.textContent = formattedJson;
-                    outputSection.classList.remove('hidden');
-                } else {
-                    throw new Error('No content received from the API.');
+                const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const mainSubject = mainSubjectEl.value.trim();
+                const action = actionEl.value.trim();
+                const setting = settingEl.value.trim();
+                const visualStyle = visualStyleEl.value;
+                const cameraShot = cameraShotEl.value;
+                const lighting = lightingEl.value;
+                const additionalDetails = additionalDetailsEl.value.trim();
+
+                if (!mainSubject || !action || !setting) {
+                    showAlert('Input Required', 'Please fill out the Main Subject, Action, and Setting fields.');
+                    return;
                 }
 
-            } catch (error) {
-                console.error('Error generating JSON:', error);
-                showAlert('Generation Failed', 'An error occurred while generating the JSON. Please try again.');
-            } finally {
-                buttonText.textContent = 'Generate JSON';
-                loader.classList.add('hidden');
-                generateBtn.disabled = false;
-            }
-        });
+                buttonText.textContent = '';
+                loader.classList.remove('hidden');
+                generateBtn.disabled = true;
 
-        copyBtn.addEventListener('click', () => {
-            if (jsonOutputEl.textContent) {
-                const tempTextarea = document.createElement('textarea');
-                tempTextarea.value = jsonOutputEl.textContent;
-                document.body.appendChild(tempTextarea);
-                tempTextarea.select();
+                const userPrompt = `Generate a JSON object for an AI video prompt. The video should contain the following elements:
+                - A main subject: ${mainSubject}
+                - The action the subject is performing: ${action}
+                - The setting or environment: ${setting}
+                - The visual style: ${visualStyle}
+                - The camera shot: ${cameraShot}
+                - The lighting and time of day: ${lighting}
+                - Additional details: ${additionalDetails}
+                The JSON object should have keys "subject", "action", "setting", "visual_style", "camera_shot", "lighting", and "additional_details". Ensure the output is a valid JSON object.`;
+
+                const payload = {
+                    contents: [{
+                        parts: [{
+                            text: userPrompt
+                        }]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "subject": { "type": "STRING" },
+                                "action": { "type": "STRING" },
+                                "setting": { "type": "STRING" },
+                                "visual_style": { "type": "STRING" },
+                                "camera_shot": { "type": "STRING" },
+                                "lighting": { "type": "STRING" },
+                                "additional_details": { "type": "STRING" }
+                            }
+                        }
+                    }
+                };
+
                 try {
-                    document.execCommand('copy');
-                    showAlert('Success', 'JSON copied to clipboard!');
-                } catch (err) {
-                    console.error('Failed to copy text:', err);
-                    showAlert('Error', 'Failed to copy JSON. Please try again.');
-                }
-                document.body.removeChild(tempTextarea);
-            }
-        });
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (jsonText) {
+                        const formattedJson = JSON.stringify(JSON.parse(jsonText), null, 2);
+                        jsonOutputEl.textContent = formattedJson;
+                        outputSection.classList.remove('hidden');
+
+                        // Save the new entry to Firestore
+                        const inputs = { mainSubject, action, setting, visualStyle, cameraShot, lighting, additionalDetails };
+                        const historyDoc = {
+                            inputs: inputs,
+                            output: formattedJson,
+                            timestamp: new Date()
+                        };
+
+                        if (window.db && window.userId) {
+                           const collectionPath = `/artifacts/${window.appId}/users/${window.userId}/json_history`;
+                           await addDoc(collection(window.db, collectionPath), historyDoc);
+                        }
+                        
+                    } else {
+                        throw new Error('No content received from the API.');
+                    }
+
+                } catch (error) {
+                    console.error('Error generating JSON:', error);
+                    showAlert('Generation Failed', 'An error occurred while generating the JSON. Please try again. Make sure your API key is correct.');
+                } finally {
+                    buttonText.textContent = 'Generate JSON';
+                    loader.classList.add('hidden');
+                    generateBtn.disabled = false;
+                }
+            });
+
+            copyBtn.addEventListener('click', () => {
+                if (jsonOutputEl.textContent) {
+                    const tempTextarea = document.createElement('textarea');
+                    tempTextarea.value = jsonOutputEl.textContent;
+                    document.body.appendChild(tempTextarea);
+                    tempTextarea.select();
+                    try {
+                        document.execCommand('copy');
+                        showAlert('Success', 'JSON copied to clipboard!');
+                    } catch (err) {
+                        console.error('Failed to copy text:', err);
+                        showAlert('Error', 'Failed to copy JSON. Please try again.');
+                    }
+                    document.body.removeChild(tempTextarea);
+                }
+            });
+        });
     </script>
 </body>
 </html>
